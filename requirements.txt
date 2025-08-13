@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+faiss-cpu
+sentence-transformers
+numpy
+pandas
+tqdm
+beautifulsoup4
+pydantic>=2
+
+httpx
+
+chromadb

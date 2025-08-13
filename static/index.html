@@ -1,0 +1,90 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Medical RAG Chatbot (Local)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 24px auto; }
+    #log { border: 1px solid #ddd; padding: 12px; border-radius: 8px; min-height: 260px; white-space: pre-wrap; }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
+    input, button { font-size: 16px; padding: 10px; }
+    .u { color: #222; }
+    .b { color: #0a5; }
+    .note { font-size: 12px; color: #666; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Medical RAG Chatbot</h1>
+  <div class="note">Educational only. Not medical advice. Consult a clinician for personal care.</div>
+  <div id="log"></div>
+  <div class="row">
+    <input id="msg" placeholder="Ask a medical question..." autofocus />
+    <button id="send">Send</button>
+  </div>
+
+  <script>
+    const log = document.getElementById("log");
+    const input = document.getElementById("msg");
+    const sendBtn = document.getElementById("send");
+    let history = [];
+
+    function line(text, cls="") {
+      const d = document.createElement("div");
+      d.className = cls;
+      d.textContent = text;
+      log.appendChild(d);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    async function send() {
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      line("You: " + text, "u");
+      history.push({ role: "user", content: text });
+
+      const resp = await fetch("/chat", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ messages: history })
+      });
+
+      if (!resp.ok || !resp.body) {
+        line("Error: " + (resp.statusText || "No stream"));
+        return;
+      }
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let botText = "";
+      let div = document.createElement("div");
+      div.className = "b";
+      div.textContent = "Bot: ";
+      log.appendChild(div);
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        for (const l of chunk.split("\n")) {
+          if (l.startsWith("data:")) {
+            const data = l.slice(5).trim();
+            if (data === "[DONE]") {
+              history.push({ role: "assistant", content: botText });
+              break;
+            } else {
+              botText += data;
+              div.textContent = "Bot: " + botText;
+            }
+          }
+        }
+      }
+      log.scrollTop = log.scrollHeight;
+    }
+
+    sendBtn.onclick = send;
+    input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+  </script>
+</body>
+</html>
