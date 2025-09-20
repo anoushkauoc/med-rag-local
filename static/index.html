@@ -174,7 +174,7 @@
         if(!resp.ok || !resp.body){
           throw new Error(`HTTP ${resp.status}`);
         }
-        const BACKEND = localStorage.getItem('BACKEND') || 'https://YOUR-TUNNEL.ngrok.app';
+        const BACKEND = localStorage.getItem('BACKEND') || 'https://c137a2849114.ngrok-free.app';
         localStorage.setItem('BACKEND', prompt('Set BACKEND URL:', BACKEND) || BACKEND);
 
         updateStatus('stream', 'Streaming …');
