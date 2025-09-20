@@ -14,7 +14,7 @@ app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://c137a2849114.ngrok-free.app",  # add once you deploy
+        "https://0f2f6cc0465e.ngrok-free.app",  # add once you deploy
         "http://localhost:3000",                     # optional dev
     ],
     allow_methods=["POST", "GET", "OPTIONS"],
