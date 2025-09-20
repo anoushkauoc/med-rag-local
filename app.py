@@ -5,12 +5,24 @@ from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from rag_utils import load_kb, retrieve, load_embedder, load_chroma
-
+from fastapi.middleware.cors import CORSMiddleware
 # Ollama local server config
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434")
 MODEL_NAME  = os.getenv("LOCAL_MODEL", "llama3.1")
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://c137a2849114.ngrok-free.app",  # add once you deploy
+        "http://localhost:3000",                     # optional dev
+    ],
+    allow_methods=["POST", "GET", "OPTIONS"],
+    allow_headers=["*"],
+)
+
+
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 kb_df = None

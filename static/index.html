@@ -102,6 +102,7 @@
 
   <script>
     // ===== Minimal chat state =====
+    const BACKEND = 'https://c137a2849114.ngrok-free.app';  // or https://<random>.trycloudflare.com
     const messagesEl = document.getElementById('messages');
     const inputEl = document.getElementById('input');
     const sendBtn = document.getElementById('sendBtn');
@@ -164,7 +165,7 @@
       const bubble = addMessage('assistant', '');
 
       try {
-        const resp = await fetch('/chat', {
+        const resp = await fetch(`${BACKEND}/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: history }),
@@ -173,6 +174,8 @@
         if(!resp.ok || !resp.body){
           throw new Error(`HTTP ${resp.status}`);
         }
+        const BACKEND = localStorage.getItem('BACKEND') || 'https://YOUR-TUNNEL.ngrok.app';
+        localStorage.setItem('BACKEND', prompt('Set BACKEND URL:', BACKEND) || BACKEND);
 
         updateStatus('stream', 'Streaming …');
         const reader = resp.body.getReader();
