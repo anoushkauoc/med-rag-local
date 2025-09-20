@@ -1,90 +1,246 @@
-<!doctype html>
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Medical RAG Chatbot (Local)</title>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Medical RAG (Local · Ollama + Chroma)</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 800px; margin: 24px auto; }
-    #log { border: 1px solid #ddd; padding: 12px; border-radius: 8px; min-height: 260px; white-space: pre-wrap; }
-    .row { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 12px; }
-    input, button { font-size: 16px; padding: 10px; }
-    .u { color: #222; }
-    .b { color: #0a5; }
-    .note { font-size: 12px; color: #666; margin-top: 6px; }
+    :root{
+      --bg:#0b1020; --card:#131a2b; --muted:#8ea0c2; --text:#e7eeff; --accent:#6aa6ff; --accent-2:#6affd4; --bad:#ff6a6a;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,"Helvetica Neue",Arial,sans-serif;background:linear-gradient(120deg,#0b1020,#0f1430 45%,#0b1020);color:var(--text)}
+    .app{max-width:980px;margin:0 auto;padding:20px;display:flex;flex-direction:column;gap:16px;min-height:100%}
+    header{display:flex;align-items:center;gap:12px;justify-content:space-between}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent-2));box-shadow:0 6px 24px rgba(106,166,255,.35)}
+    h1{font-size:18px;margin:0}
+    .meta{font-size:12px;color:var(--muted)}
+
+    .card{background:rgba(19,26,43,.85);backdrop-filter:saturate(120%) blur(6px);border:1px solid rgba(255,255,255,.07);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .row{display:flex;gap:16px}
+    .col{flex:1}
+
+    /* Chat window */
+    .chat{display:flex;flex-direction:column;height:62vh;min-height:360px}
+    .messages{flex:1;overflow:auto;padding:18px;scroll-behavior:smooth}
+    .msg{display:flex;gap:12px;margin:10px 0;line-height:1.4}
+    .msg .bubble{padding:12px 14px;border-radius:14px;max-width:80%;white-space:pre-wrap;word-wrap:break-word}
+    .msg.user{justify-content:flex-end}
+    .msg.user .bubble{background:#1e293b;color:#e6f0ff;border:1px solid rgba(255,255,255,.06)}
+    .msg.assistant .bubble{background:#10182b;border:1px solid rgba(255,255,255,.08)}
+    .msg.system .bubble{background:#0d1222;border:1px dashed rgba(255,255,255,.12);color:#a9b9d6}
+    .msg .role{font-size:12px;color:var(--muted)}
+    .msg.citation .bubble{font-size:13px;color:#cfe2ff}
+
+    .composer{display:flex;gap:10px;padding:12px;border-top:1px solid rgba(255,255,255,.06)}
+    textarea{flex:1;resize:none;min-height:44px;max-height:160px;padding:10px 12px;background:#0c1222;color:var(--text);border:1px solid rgba(255,255,255,.06);border-radius:12px;font-size:15px;line-height:1.4}
+    button{background:linear-gradient(135deg,var(--accent),#77c0ff);border:none;color:#06152b;padding:10px 14px;border-radius:12px;font-weight:600;cursor:pointer;box-shadow:0 8px 18px rgba(106,166,255,.35)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+
+    /* Side panel */
+    .panel{padding:14px;display:flex;flex-direction:column;gap:8px}
+    .panel h3{font-size:13px;margin:6px 0;color:#cbd7f1}
+    .pill{display:inline-flex;gap:6px;align-items:center;background:#0e1530;border:1px solid rgba(255,255,255,.06);border-radius:999px;padding:6px 10px;font-size:12px;color:#c0d0f0}
+    .kv{display:grid;grid-template-columns:120px 1fr;gap:8px;font-size:12px;color:#b7c6e6}
+    .tiny{font-size:12px;color:#95a7c7}
+
+    .footer{font-size:12px;color:var(--muted);text-align:center;padding-bottom:12px}
+    a{color:#8cc3ff;text-decoration:none}
+    .danger{background:linear-gradient(135deg,#ff8484,#ffa6a6);color:#2b0d0d;box-shadow:0 8px 18px rgba(255,106,106,.25)}
   </style>
 </head>
 <body>
-  <h1>Medical RAG Chatbot</h1>
-  <div class="note">Educational only. Not medical advice. Consult a clinician for personal care.</div>
-  <div id="log"></div>
-  <div class="row">
-    <input id="msg" placeholder="Ask a medical question..." autofocus />
-    <button id="send">Send</button>
+  <div class="app">
+    <header>
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <h1>Medical RAG — Local</h1>
+          <div class="meta">Ollama (LLM) · Chroma (Vector DB) · FastAPI (SSE)</div>
+        </div>
+      </div>
+      <div class="pill" title="Guardrail">Medical-only • cites sources • no diagnosis</div>
+    </header>
+
+    <div class="row">
+      <div class="col card chat" id="chatCard">
+        <div class="messages" id="messages"></div>
+        <div class="composer">
+          <textarea id="input" placeholder="Ask a medical question… (Shift+Enter for newline)"></textarea>
+          <button id="sendBtn">Send</button>
+          <button id="stopBtn" class="danger" disabled>Stop</button>
+        </div>
+      </div>
+
+      <aside class="col card panel">
+        <h3>Status</h3>
+        <div class="kv">
+          <div>Backend:</div>
+          <div id="statusApi">Not checked</div>
+          <div>Streaming:</div>
+          <div id="statusStream">Idle</div>
+        </div>
+
+        <h3>Tips</h3>
+        <ul class="tiny">
+          <li>Answers should include short citations like <code>[source (section)]</code>.</li>
+          <li>Personal medical advice is out-of-scope — see a clinician for individual cases.</li>
+          <li>Use Shift+Enter to add a new line. Enter sends.</li>
+        </ul>
+
+        <h3>About</h3>
+        <div class="tiny">
+          This UI posts your full message history to <code>POST /chat</code> and renders the Server‑Sent stream.
+        </div>
+      </aside>
+    </div>
+
+    <div class="footer">Frontend © med‑rag‑local • Built for local privacy by design</div>
   </div>
 
   <script>
-    const log = document.getElementById("log");
-    const input = document.getElementById("msg");
-    const sendBtn = document.getElementById("send");
-    let history = [];
+    // ===== Minimal chat state =====
+    const messagesEl = document.getElementById('messages');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const statusApiEl = document.getElementById('statusApi');
+    const statusStreamEl = document.getElementById('statusStream');
 
-    function line(text, cls="") {
-      const d = document.createElement("div");
-      d.className = cls;
-      d.textContent = text;
-      log.appendChild(d);
-      log.scrollTop = log.scrollHeight;
+    let controller = null; // AbortController for streaming
+    const history = [
+      // Keep history small; your backend already prepends system + context
+      // { role: 'system', content: 'optional user-visible system notes' }
+    ];
+
+    // ===== UI helpers =====
+    function el(tag, attrs={}, children=[]) {
+      const n = document.createElement(tag);
+      Object.entries(attrs).forEach(([k,v]) => (k in n) ? n[k]=v : n.setAttribute(k,v));
+      children.forEach(c => n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
+      return n;
     }
 
-    async function send() {
-      const text = input.value.trim();
-      if (!text) return;
-      input.value = "";
-      line("You: " + text, "u");
-      history.push({ role: "user", content: text });
+    function addMessage(role, content, cls=""){
+      const bubble = el('div',{className:'bubble'}); bubble.textContent = content;
+      const msg = el('div',{className:`msg ${role} ${cls}`}, [ bubble ]);
+      messagesEl.appendChild(msg);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      return bubble; // so we can append to it during stream
+    }
 
-      const resp = await fetch("/chat", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ messages: history })
-      });
+    function updateStatus(k, text){
+      (k==='api'?statusApiEl:statusStreamEl).textContent = text;
+    }
 
-      if (!resp.ok || !resp.body) {
-        line("Error: " + (resp.statusText || "No stream"));
-        return;
+    async function pingBackend(){
+      try {
+        const r = await fetch('/', { method: 'GET' });
+        updateStatus('api', r.ok ? 'OK (index served)' : `HTTP ${r.status}`);
+      } catch(e){
+        updateStatus('api', 'Unavailable');
       }
+    }
 
-      const reader = resp.body.getReader();
-      const decoder = new TextDecoder();
-      let botText = "";
-      let div = document.createElement("div");
-      div.className = "b";
-      div.textContent = "Bot: ";
-      log.appendChild(div);
+    // ===== Streaming POST /chat =====
+    async function send(){
+      const content = inputEl.value.trim();
+      if(!content) return;
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        for (const l of chunk.split("\n")) {
-          if (l.startsWith("data:")) {
-            const data = l.slice(5).trim();
-            if (data === "[DONE]") {
-              history.push({ role: "assistant", content: botText });
-              break;
-            } else {
-              botText += data;
-              div.textContent = "Bot: " + botText;
+      // Push user message into history and render
+      const userMsg = { role: 'user', content };
+      history.push(userMsg);
+      addMessage('user', content);
+      inputEl.value = '';
+
+      // Prepare streaming request
+      controller = new AbortController();
+      sendBtn.disabled = true; stopBtn.disabled = false;
+      updateStatus('stream', 'Connecting …');
+
+      // Create placeholder assistant bubble we append into
+      const bubble = addMessage('assistant', '');
+
+      try {
+        const resp = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: history }),
+          signal: controller.signal
+        });
+        if(!resp.ok || !resp.body){
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
+        updateStatus('stream', 'Streaming …');
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let partial = '';
+
+        while(true){
+          const {value, done} = await reader.read();
+          if(done) break;
+          const chunk = decoder.decode(value, { stream:true });
+          partial += chunk;
+
+          // SSE-style frames are separated by double newlines
+          let idx;
+          while((idx = partial.indexOf('\n\n')) !== -1){
+            const frame = partial.slice(0, idx).trim();
+            partial = partial.slice(idx + 2);
+            if(frame.startsWith('data:')){
+              const data = frame.slice(5);
+              if(data === '[DONE]') {
+                // finalize
+                const assistantMsg = { role:'assistant', content: bubble.textContent };
+                history.push(assistantMsg);
+                updateStatus('stream', 'Idle');
+                sendBtn.disabled = false; stopBtn.disabled = true;
+                return;
+              } else {
+                // Append token to bubble
+                bubble.textContent += data;
+                messagesEl.scrollTop = messagesEl.scrollHeight;
+              }
             }
           }
         }
+
+        // If stream ended without [DONE]
+        const assistantMsg = { role:'assistant', content: bubble.textContent };
+        history.push(assistantMsg);
+        updateStatus('stream', 'Idle');
+      } catch (err){
+        if(err.name === 'AbortError'){
+          bubble.textContent += "\n\n[stream aborted]";
+        } else {
+          bubble.textContent += `\n\n[error] ${err.message}`;
+        }
+      } finally {
+        sendBtn.disabled = false; stopBtn.disabled = true; controller = null;
       }
-      log.scrollTop = log.scrollHeight;
     }
 
-    sendBtn.onclick = send;
-    input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
+    function stop(){
+      if(controller) controller.abort();
+    }
+
+    // events
+    sendBtn.addEventListener('click', send);
+    stopBtn.addEventListener('click', stop);
+    inputEl.addEventListener('keydown', (e)=>{
+      if(e.key==='Enter' && !e.shiftKey){
+        e.preventDefault();
+        send();
+      }
+    });
+
+    // init
+    pingBackend();
+    // Seed a friendly system note (client-side only, not sent)
+    addMessage('system', 'Welcome! Ask medical/health questions only. This assistant uses a local model and cites its sources.');
   </script>
 </body>
 </html>
